@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>7-Day Pharmacy Roster Planner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        input[type="time"] { min-width: 100px; }
+        .day-tab.active { background-color: #2563eb; color: white; border-color: #2563eb; }
+
+        /* Print Specific Styles */
+        @media print {
+            @page { size: landscape; margin: 10mm; }
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            body { background-color: white !important; padding-bottom: 0 !important; }
+            .max-w-4xl { max-width: 100% !important; width: 100% !important; margin: 0 !important; padding: 0 !important; }
+            .roster-card { border: 2px solid #334155 !important; border-radius: 8px !important; }
+        }
+        .print-only { display: none; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen pb-24 text-slate-900">
+
+    <!-- Print Headers (Hidden on screen) -->
+    <div id="printHeader" class="print-only p-4 border-b-2 border-slate-900 mb-6">
+        <div class="flex justify-between items-center">
+            <div>
+                <h1 id="printTitle" class="text-2xl font-black tracking-tight text-slate-900">Pharmacy Roster</h1>
+                <p id="printSubtitle" class="text-slate-500 font-medium"></p>
+            </div>
+            <div id="printStats" class="flex gap-4">
+                <!-- Stats injected here -->
+            </div>
+        </div>
+    </div>
+
+    <div id="weeklyPrintSummary" class="print-only px-4">
+        <div id="printTableContainer"></div>
+        <div id="staffBreakdownContainer" class="mt-8 border-t-2 border-slate-200 pt-6">
+            <!-- Staff totals injected here -->
+        </div>
+    </div>
+
+    <div class="max-w-4xl mx-auto px-4 pt-8 no-print">
+        <!-- Header -->
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+            <div>
+                <h1 class="text-2xl font-bold text-slate-900">Pharmacy Roster Planner</h1>
+                <div class="mt-2 flex items-center gap-2">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase">Week Beginning:</label>
+                    <input type="date" id="weekStart" onchange="updateDates()" class="text-xs font-semibold bg-white border border-slate-200 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+            </div>
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex gap-6">
+                <div class="text-right border-r border-slate-100 pr-6">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase">Daily Cost</p>
+                    <h2 id="totalDailyCost" class="text-2xl font-black text-slate-800">$0.00</h2>
+                </div>
+                <div class="text-right">
+                    <p class="text-[10px] font-bold text-blue-400 uppercase">Weekly Total</p>
+                    <h2 id="totalWeeklyCost" class="text-2xl font-black text-blue-600">$0.00</h2>
+                </div>
+            </div>
+        </div>
+
+        <!-- Staff Directory Section -->
+        <details class="mb-6 bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+            <summary class="p-4 font-bold text-slate-700 cursor-pointer hover:bg-slate-50 flex justify-between items-center">
+                <span>Manage Staff Directory (Pre-save Workers)</span>
+                <span class="text-xs text-blue-500 font-medium">Add/Edit Team Members</span>
+            </summary>
+            <div class="p-4 border-t border-slate-100 space-y-4">
+                <div class="grid grid-cols-12 gap-2 text-[10px] font-bold text-slate-400 uppercase px-2">
+                    <div class="col-span-5">Name</div>
+                    <div class="col-span-4">Role</div>
+                    <div class="col-span-2">Rate ($)</div>
+                    <div class="col-span-1"></div>
+                </div>
+                <div id="directoryList" class="space-y-2">
+                    <!-- Directory entries -->
+                </div>
+                <button onclick="addDirectoryEntry()" class="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-bold transition-all border border-dashed border-slate-300">
+                    + Add New Staff Member to Directory
+                </button>
+            </div>
+        </details>
+
+        <!-- Day Navigation -->
+        <div class="flex flex-wrap gap-2 mb-6">
+            <button onclick="switchDay(0)" id="tab-0" class="day-tab flex-1 py-2 px-1 rounded-xl text-center border bg-white transition-all hover:bg-slate-50">
+                <div class="text-[10px] font-black uppercase opacity-50">Mon</div>
+                <div class="text-xs font-bold day-date">--/--</div>
+            </button>
+            <button onclick="switchDay(1)" id="tab-1" class="day-tab flex-1 py-2 px-1 rounded-xl text-center border bg-white transition-all hover:bg-slate-50">
+                <div class="text-[10px] font-black uppercase opacity-50">Tue</div>
+                <div class="text-xs font-bold day-date">--/--</div>
+            </button>
+            <button onclick="switchDay(2)" id="tab-2" class="day-tab flex-1 py-2 px-1 rounded-xl text-center border bg-white transition-all hover:bg-slate-50">
+                <div class="text-[10px] font-black uppercase opacity-50">Wed</div>
+                <div class="text-xs font-bold day-date">--/--</div>
+            </button>
+            <button onclick="switchDay(3)" id="tab-3" class="day-tab flex-1 py-2 px-1 rounded-xl text-center border bg-white transition-all hover:bg-slate-50">
+                <div class="text-[10px] font-black uppercase opacity-50">Thu</div>
+                <div class="text-xs font-bold day-date">--/--</div>
+            </button>
+            <button onclick="switchDay(4)" id="tab-4" class="day-tab flex-1 py-2 px-1 rounded-xl text-center border bg-white transition-all hover:bg-slate-50">
+                <div class="text-[10px] font-black uppercase opacity-50">Fri</div>
+                <div class="text-xs font-bold day-date">--/--</div>
+            </button>
+            <button onclick="switchDay(5)" id="tab-5" class="day-tab flex-1 py-2 px-1 rounded-xl text-center border bg-white transition-all hover:bg-slate-50">
+                <div class="text-[10px] font-black uppercase opacity-50 text-blue-400">Sat</div>
+                <div class="text-xs font-bold day-date">--/--</div>
+            </button>
+            <button onclick="switchDay(6)" id="tab-6" class="day-tab flex-1 py-2 px-1 rounded-xl text-center border bg-white transition-all hover:bg-slate-50">
+                <div class="text-[10px] font-black uppercase opacity-50 text-red-400">Sun</div>
+                <div class="text-xs font-bold day-date">--/--</div>
+            </button>
+        </div>
+
+        <!-- Roster Table -->
+        <div id="rosterCard" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden roster-card">
+            <div class="bg-slate-900 p-4 flex justify-between items-center text-white no-print">
+                <span id="currentDayTitle" class="text-sm font-bold uppercase tracking-widest text-blue-100">Monday Schedule</span>
+                <button onclick="addShift()" class="bg-blue-600 hover:bg-blue-500 text-xs px-4 py-2 rounded-lg font-bold transition-colors shadow-lg text-white">+ Add Shift</button>
+            </div>
+            
+            <div class="hidden md:grid grid-cols-12 gap-2 p-3 bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-tighter">
+                <div class="col-span-3">Staff Name / Role</div>
+                <div class="col-span-2 text-center">Start Time</div>
+                <div class="col-span-2 text-center">End Time</div>
+                <div class="col-span-2">Rate ($/hr)</div>
+                <div class="col-span-2 text-right">Subtotal</div>
+                <div class="col-span-1 no-print"></div>
+            </div>
+
+            <div id="shiftList" class="divide-y divide-slate-100">
+                <!-- Shifts injected here -->
+            </div>
+
+            <div id="emptyState" class="p-16 text-center hidden no-print">
+                <div class="text-4xl mb-2">🗓️</div>
+                <p class="text-slate-400 text-sm">No shifts for this day yet.</p>
+            </div>
+        </div>
+
+        <!-- Action Area -->
+        <div class="mt-6 flex flex-col md:flex-row gap-4 no-print">
+            <div id="coverageWarning" class="flex-1 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3 hidden">
+                <span class="text-xl">⚠️</span>
+                <div>
+                    <p class="text-sm font-bold text-amber-800">Pharmacy Coverage Issue</p>
+                    <p class="text-xs text-amber-700">Dispensary safety requires at least one Pharmacist on duty (Pharmacist, PIC, or Manager).</p>
+                </div>
+            </div>
+            
+            <div class="flex flex-wrap gap-2">
+                <button onclick="printWeekly()" class="px-8 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all shadow-md">
+                    Print Weekly Summary
+                </button>
+                <button onclick="clearAllData()" class="px-6 py-3 bg-red-50 text-red-600 rounded-xl font-bold hover:bg-red-100 transition-all">
+                    Clear Week
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+        
+        // Define all possible roles
+        const ROLES = {
+            'ph': { label: 'Pharmacist', color: 'blue', isClinical: true },
+            'pic': { label: 'Pharmacist in Charge', color: 'blue', isClinical: true },
+            'p-mgr': { label: 'Pharmacy Manager', color: 'blue', isClinical: true },
+            'in': { label: 'Intern Pharmacist', color: 'emerald', isClinical: true },
+            'dt': { label: 'Dispense Tech', color: 'emerald', isClinical: false },
+            'as': { label: 'Pharmacy Assistant', color: 'slate', isClinical: false },
+            'st': { label: 'Student / Trainee', color: 'slate', isClinical: false },
+            'rm': { label: 'Retail Manager', color: 'amber', isClinical: false },
+            'dr': { label: 'Delivery Driver', color: 'amber', isClinical: false }
+        };
+
+        let currentDay = 0;
+        let weeklyData = JSON.parse(localStorage.getItem('ph_roster_data')) || [[], [], [], [], [], [], []];
+        let staffDirectory = JSON.parse(localStorage.getItem('ph_staff_directory')) || [];
+        let weekStartStr = localStorage.getItem('ph_roster_date') || new Date().toISOString().split('T')[0];
+
+        function updateDates() {
+            weekStartStr = document.getElementById('weekStart').value;
+            localStorage.setItem('ph_roster_date', weekStartStr);
+            
+            const startDate = new Date(weekStartStr);
+            const dateLabels = document.querySelectorAll('.day-date');
+            
+            dateLabels.forEach((label, idx) => {
+                const d = new Date(startDate);
+                d.setDate(startDate.getDate() + idx);
+                const dd = String(d.getDate()).padStart(2, '0');
+                const mm = String(d.getMonth() + 1).padStart(2, '0');
+                label.innerText = `${dd}/${mm}`;
+            });
+            renderUI();
+        }
+
+        function switchDay(index) {
+            currentDay = index;
+            renderUI();
+        }
+
+        // --- DIRECTORY LOGIC ---
+        function addDirectoryEntry() {
+            staffDirectory.push({ id: Date.now(), name: 'New Staff', role: 'as', rate: 28 });
+            saveDirectory();
+        }
+
+        function updateDirectory(id, field, value) {
+            const entry = staffDirectory.find(e => e.id === id);
+            if (entry) {
+                entry[field] = (field === 'rate') ? parseFloat(value) || 0 : value;
+                saveDirectory();
+            }
+        }
+
+        function removeDirectoryEntry(id) {
+            staffDirectory = staffDirectory.filter(e => e.id !== id);
+            saveDirectory();
+        }
+
+        function saveDirectory() {
+            localStorage.setItem('ph_staff_directory', JSON.stringify(staffDirectory));
+            renderDirectoryUI();
+            renderUI();
+        }
+
+        function renderDirectoryUI() {
+            const list = document.getElementById('directoryList');
+            list.innerHTML = staffDirectory.map(entry => `
+                <div class="grid grid-cols-12 gap-2 items-center bg-slate-50 p-2 rounded-lg border border-slate-100">
+                    <div class="col-span-5">
+                        <input type="text" value="${entry.name}" onchange="updateDirectory(${entry.id}, 'name', this.value)" 
+                            class="w-full text-xs font-bold px-2 py-1 rounded border border-slate-200">
+                    </div>
+                    <div class="col-span-4">
+                        <select onchange="updateDirectory(${entry.id}, 'role', this.value)" 
+                            class="w-full text-[10px] font-bold uppercase px-1 py-1 rounded border border-slate-200">
+                            ${Object.entries(ROLES).map(([key, role]) => `
+                                <option value="${key}" ${entry.role === key ? 'selected' : ''}>${role.label}</option>
+                            `).join('')}
+                        </select>
+                    </div>
+                    <div class="col-span-2">
+                        <input type="number" value="${entry.rate}" onchange="updateDirectory(${entry.id}, 'rate', this.value)" 
+                            class="w-full text-xs font-bold px-2 py-1 rounded border border-slate-200">
+                    </div>
+                    <div class="col-span-1 text-right">
+                        <button onclick="removeDirectoryEntry(${entry.id})" class="text-red-400 hover:text-red-600 p-1">×</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // --- ROSTER LOGIC ---
+        function addShift() {
+            const id = Date.now();
+            weeklyData[currentDay].push({ id, name: 'Select Staff...', role: 'as', start: '09:00', end: '17:00', rate: 28 });
+            saveAndRender();
+        }
+
+        function removeShift(id) {
+            weeklyData[currentDay] = weeklyData[currentDay].filter(s => s.id !== id);
+            saveAndRender();
+        }
+
+        function updateShift(id, field, value) {
+            const shift = weeklyData[currentDay].find(s => s.id === id);
+            if (shift) {
+                if (field === 'name' && value !== 'Custom') {
+                    const dirStaff = staffDirectory.find(s => s.name === value);
+                    if (dirStaff) {
+                        shift.name = dirStaff.name;
+                        shift.role = dirStaff.role;
+                        shift.rate = dirStaff.rate;
+                    } else {
+                        shift.name = value;
+                    }
+                } else {
+                    shift[field] = (field === 'rate') ? parseFloat(value) || 0 : value;
+                }
+                saveAndRender();
+            }
+        }
+
+        function calculateHours(start, end) {
+            if (!start || !end) return 0;
+            const [sH, sM] = start.split(':').map(Number);
+            const [eH, eM] = end.split(':').map(Number);
+            const diff = (eH + eM/60) - (sH + sM/60);
+            return diff > 0 ? diff : 0;
+        }
+
+        function saveAndRender() {
+            localStorage.setItem('ph_roster_data', JSON.stringify(weeklyData));
+            renderUI();
+        }
+
+        function clearAllData() {
+            if(confirm("Are you sure you want to clear the entire week?")) {
+                weeklyData = [[],[],[],[],[],[],[]];
+                saveAndRender();
+            }
+        }
+
+        function renderUI() {
+            document.querySelectorAll('.day-tab').forEach((tab, idx) => {
+                tab.classList.toggle('active', idx === currentDay);
+            });
+
+            const startDate = new Date(weekStartStr);
+            const d = new Date(startDate);
+            d.setDate(startDate.getDate() + currentDay);
+            const dateStr = d.toLocaleDateString('en-AU');
+
+            document.getElementById('currentDayTitle').innerText = `${dayNames[currentDay]} - ${dateStr}`;
+            const list = document.getElementById('shiftList');
+            const empty = document.getElementById('emptyState');
+            const dayShifts = weeklyData[currentDay];
+
+            if (dayShifts.length === 0) {
+                list.innerHTML = '';
+                empty.classList.remove('hidden');
+            } else {
+                empty.classList.add('hidden');
+                list.innerHTML = dayShifts.map(shift => `
+                    <div class="p-3 md:grid md:grid-cols-12 gap-2 flex flex-col items-center border-b border-slate-50">
+                        <div class="col-span-3 w-full text-left">
+                            <select onchange="updateShift(${shift.id}, 'name', this.value)" 
+                                class="w-full font-bold text-slate-700 border-none bg-transparent focus:ring-0 p-0 text-sm">
+                                <option value="Custom" ${!staffDirectory.some(e => e.name === shift.name) ? 'selected' : ''}>-- Choose Staff --</option>
+                                ${staffDirectory.map(e => `<option value="${e.name}" ${shift.name === e.name ? 'selected' : ''}>${e.name}</option>`).join('')}
+                                <option value="${shift.name}" ${!staffDirectory.some(e => e.name === shift.name) ? 'selected' : ''}>${shift.name} (Custom)</option>
+                            </select>
+                            <select onchange="updateShift(${shift.id}, 'role', this.value)" 
+                                class="text-[10px] text-slate-400 bg-transparent border-none p-0 focus:ring-0 uppercase font-bold cursor-pointer">
+                                ${Object.entries(ROLES).map(([key, role]) => `
+                                    <option value="${key}" ${shift.role === key ? 'selected' : ''}>${role.label}</option>
+                                `).join('')}
+                            </select>
+                        </div>
+                        <div class="col-span-2 flex items-center justify-center">
+                            <input type="time" value="${shift.start}" onchange="updateShift(${shift.id}, 'start', this.value)" class="text-sm border border-slate-200 rounded-lg px-2 py-1">
+                        </div>
+                        <div class="col-span-2 flex items-center justify-center">
+                            <input type="time" value="${shift.end}" onchange="updateShift(${shift.id}, 'end', this.value)" class="text-sm border border-slate-200 rounded-lg px-2 py-1">
+                        </div>
+                        <div class="col-span-2 relative">
+                            <span class="absolute left-2 top-1.5 text-slate-300 text-sm no-print">$</span>
+                            <input type="number" value="${shift.rate}" onchange="updateShift(${shift.id}, 'rate', this.value)" class="w-full text-sm border border-slate-200 rounded-lg pl-5 pr-2 py-1">
+                        </div>
+                        <div class="col-span-2 text-right self-center">
+                            <p class="text-sm font-bold text-slate-800">$${(calculateHours(shift.start, shift.end) * shift.rate).toFixed(2)}</p>
+                        </div>
+                        <div class="col-span-1 text-right self-center no-print">
+                            <button onclick="removeShift(${shift.id})" class="text-slate-300 hover:text-red-500 transition-colors p-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+            updateTotals();
+        }
+
+        function updateTotals() {
+            let weeklyTotal = 0;
+            let dailyTotal = 0;
+            let hasPharmacistToday = false;
+            let daysWithStaff = 0;
+
+            weeklyData.forEach((day, idx) => {
+                let dayCost = 0;
+                day.forEach(shift => {
+                    const hours = calculateHours(shift.start, shift.end);
+                    dayCost += hours * shift.rate;
+                    const roleInfo = ROLES[shift.role];
+                    if (idx === currentDay && roleInfo?.isClinical && hours > 0) {
+                        // Check if it's a senior clinical role for coverage
+                        if (['ph', 'pic', 'p-mgr'].includes(shift.role)) hasPharmacistToday = true;
+                    }
+                });
+                weeklyTotal += dayCost;
+                if (dayCost > 0) daysWithStaff++;
+                if (idx === currentDay) dailyTotal = dayCost;
+            });
+
+            document.getElementById('totalDailyCost').innerText = `$${dailyTotal.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+            document.getElementById('totalWeeklyCost').innerText = `$${weeklyTotal.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+            
+            const warning = document.getElementById('coverageWarning');
+            if (!hasPharmacistToday && weeklyData[currentDay].length > 0) {
+                warning.classList.remove('hidden');
+            } else {
+                warning.classList.add('hidden');
+            }
+
+            return { weeklyTotal, daysWithStaff };
+        }
+
+        function getRoleStyles(roleKey) {
+            const role = ROLES[roleKey] || { label: 'Unknown', color: 'slate' };
+            switch(role.color) {
+                case 'blue': return { bg: '#eff6ff', text: '#1e40af', badge: '#3b82f6' };
+                case 'emerald': return { bg: '#ecfdf5', text: '#065f46', badge: '#10b981' };
+                case 'amber': return { bg: '#fffbeb', text: '#92400e', badge: '#f59e0b' };
+                default: return { bg: '#f8fafc', text: '#334155', badge: '#64748b' };
+            }
+        }
+
+        function printWeekly() {
+            const container = document.getElementById('printTableContainer');
+            const breakdownContainer = document.getElementById('staffBreakdownContainer');
+            const statsContainer = document.getElementById('printStats');
+            const startDate = new Date(weekStartStr);
+            const dEnd = new Date(startDate);
+            dEnd.setDate(startDate.getDate() + 6);
+
+            const totals = updateTotals();
+            const avgCost = totals.daysWithStaff > 0 ? (totals.weeklyTotal / totals.daysWithStaff) : 0;
+
+            document.getElementById('printTitle').innerText = "Weekly Pharmacy Roster Summary";
+            document.getElementById('printSubtitle').innerText = `Period: ${startDate.toLocaleDateString('en-AU')} to ${dEnd.toLocaleDateString('en-AU')}`;
+            
+            statsContainer.innerHTML = `
+                <div style="background: #f1f5f9; padding: 8px 16px; border-radius: 99px; border: 1px solid #e2e8f0; text-align: right;">
+                    <div style="font-size: 8px; text-transform: uppercase; color: #64748b; font-weight: 800; line-height: 1;">Total Expenditure</div>
+                    <div style="font-size: 14px; font-weight: 900; color: #0f172a;">$${totals.weeklyTotal.toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
+                </div>
+                <div style="background: #eff6ff; padding: 8px 16px; border-radius: 99px; border: 1px solid #bfdbfe; text-align: right;">
+                    <div style="font-size: 8px; text-transform: uppercase; color: #3b82f6; font-weight: 800; line-height: 1;">Average Daily</div>
+                    <div style="font-size: 14px; font-weight: 900; color: #1e40af;">$${avgCost.toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
+                </div>
+            `;
+
+            let html = '<div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px;">';
+            let staffSummary = {};
+
+            weeklyData.forEach((day, idx) => {
+                const dDay = new Date(startDate);
+                dDay.setDate(startDate.getDate() + idx);
+                let dayCost = 0;
+                day.forEach(s => {
+                    const hours = calculateHours(s.start, s.end);
+                    const cost = hours * s.rate;
+                    dayCost += cost;
+
+                    if (!staffSummary[s.name]) staffSummary[s.name] = { cost: 0, hours: 0, role: s.role };
+                    staffSummary[s.name].cost += cost;
+                    staffSummary[s.name].hours += hours;
+                });
+
+                html += `
+                    <div style="border: 2px solid #334155; border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; background: white;">
+                        <div style="background: #1e293b; padding: 6px; text-align: center; color: white;">
+                            <div style="font-weight: 900; font-size: 10px; text-transform: uppercase;">${dayNames[idx]}</div>
+                            <div style="font-size: 9px; opacity: 0.8;">${dDay.toLocaleDateString('en-AU')}</div>
+                        </div>
+                        <div style="flex-grow: 1; min-height: 180px; padding: 5px; font-size: 9px; background: #fdfdfd;">
+                            ${day.length === 0 ? '<div style="color:#cbd5e1; text-align:center; padding-top:40px; font-style: italic;">Closed</div>' : 
+                              day.map(s => {
+                                const styles = getRoleStyles(s.role);
+                                const roleLabel = ROLES[s.role]?.label || 'Staff';
+                                
+                                return `
+                                <div style="margin-bottom: 6px; border: 1px solid #f1f5f9; background: ${styles.bg}; border-radius: 6px; padding: 5px;">
+                                    <div style="font-weight: 800; color: ${styles.text};">${s.name}</div>
+                                    <div style="display: inline-block; background: ${styles.badge}; color: white; font-size: 6.5px; padding: 1px 3px; border-radius: 3px; font-weight: 900; text-transform: uppercase; margin: 2px 0;">
+                                        ${roleLabel}
+                                    </div>
+                                    <div style="font-weight: 700; color: #475569;">${s.start} - ${s.end}</div>
+                                </div>
+                              `}).join('')}
+                        </div>
+                        <div style="background: #f8fafc; padding: 5px; text-align: right; border-top: 2px solid #334155; font-weight: 900; font-size: 10px; color: #0f172a;">
+                            $${dayCost.toFixed(2)}
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+
+            let breakdownHtml = `
+                <h3 style="font-size: 12px; font-weight: 900; color: #1e293b; margin-bottom: 12px; text-transform: uppercase; border-left: 4px solid #3b82f6; padding-left: 10px;">Weekly Staff Expenditure Report</h3>
+                <table style="width: 100%; border-collapse: collapse; font-size: 10px;">
+                    <thead>
+                        <tr style="text-align: left; border-bottom: 2px solid #1e293b; background: #f8fafc;">
+                            <th style="padding: 10px;">Staff Name</th>
+                            <th style="padding: 10px;">Role</th>
+                            <th style="padding: 10px; text-align: center;">Total Hours</th>
+                            <th style="padding: 10px; text-align: right;">Total Weekly Cost</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            Object.keys(staffSummary).sort().forEach(name => {
+                const info = staffSummary[name];
+                const roleLabel = ROLES[info.role]?.label || 'Staff';
+                breakdownHtml += `
+                    <tr style="border-bottom: 1px solid #e2e8f0;">
+                        <td style="padding: 8px 10px; font-weight: 700;">${name}</td>
+                        <td style="padding: 8px 10px; text-transform: uppercase; font-size: 8px; font-weight: 600; color: #64748b;">${roleLabel}</td>
+                        <td style="padding: 8px 10px; text-align: center;">${info.hours.toFixed(2)} hrs</td>
+                        <td style="padding: 8px 10px; text-align: right; font-weight: 800; color: #0f172a;">$${info.cost.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                    </tr>
+                `;
+            });
+
+            breakdownHtml += '</tbody></table>';
+            breakdownContainer.innerHTML = breakdownHtml;
+
+            window.print();
+        }
+
+        // Initialize App
+        document.getElementById('weekStart').value = weekStartStr;
+        renderDirectoryUI();
+        updateDates();
+    </script>
+</body>
+</html>
